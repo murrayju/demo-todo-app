@@ -4,7 +4,7 @@ set -euo pipefail
 # Create a free-tier Tiger Data service for this app.
 # Requires: tiger CLI installed and authenticated (tiger auth login)
 
-SERVICE_NAME="test-fake-webapp"
+SERVICE_NAME="demo-todo-app"
 
 echo "Creating Tiger Data service: ${SERVICE_NAME}..."
 tiger service create \

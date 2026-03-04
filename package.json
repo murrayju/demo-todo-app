@@ -1,5 +1,5 @@
 {
-  "name": "test-fake-webapp",
+  "name": "demo-todo-app",
   "version": "1.0.0",
   "description": "Simple todo list webapp for demoing ox agent sandbox features with Tiger Data",
   "main": "dist/index.js",

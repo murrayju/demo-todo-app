@@ -1,4 +1,4 @@
-# test-fake-webapp
+# demo-todo-app
 
 A simple todo list webapp backed by a Tiger Data (TimescaleDB) database. Built as a demo target for `ox` agent sandbox features.
 
