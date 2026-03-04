@@ -18,10 +18,10 @@ demo_prompts/         Pre-written feature prompts
 
 | Command | Purpose |
 |---------|---------|
-| `npm run dev` | Start dev server with hot reload (tsx watch) |
-| `npm run build` | Compile TypeScript (check for type errors) |
-| `npm run migrate` | Apply pending database migrations |
-| `npm start` | Run compiled output (production) |
+| `./bun run dev` | Start dev server with hot reload (bun --watch) |
+| `./bun run build` | Compile TypeScript (check for type errors) |
+| `./bun run migrate` | Apply pending database migrations |
+| `./bun start` | Run compiled output (production) |
 
 ## Database
 
@@ -41,7 +41,7 @@ This project uses plain SQL migration files with a minimal custom runner. There 
    - Look at existing files to determine the next number (e.g., if `001_create_todos.sql` exists, name yours `002_something.sql`)
    - Use the pattern `NNN_short_description.sql` (zero-padded three digits, underscores)
 2. Write standard PostgreSQL/TimescaleDB SQL in the file
-3. Run `npm run migrate` to apply it
+3. Run `./bun run migrate` to apply it
 
 **How the runner works:**
 - It maintains a `schema_migrations` table that tracks which files have been applied
@@ -68,6 +68,6 @@ The frontend is a single HTML file (`src/views/index.html`) with inline `<script
 
 After making changes, verify:
 
-1. `npm run migrate` -- migrations apply without errors
-2. `npm run build` -- TypeScript compiles without errors
-3. `npm run dev` -- server starts and API endpoints work (test with curl or the browser UI)
+1. `./bun run migrate` -- migrations apply without errors
+2. `./bun run build` -- TypeScript compiles without errors
+3. `./bun run dev` -- server starts and API endpoints work (test with curl or the browser UI)

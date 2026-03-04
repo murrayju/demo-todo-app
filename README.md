@@ -23,9 +23,9 @@ cp .env.example .env
 ### 2. Install and run
 
 ```bash
-npm install
-npm run migrate
-npm run dev
+./bun install
+./bun run migrate
+./bun run dev
 ```
 
 Open http://localhost:3000
@@ -34,17 +34,17 @@ Open http://localhost:3000
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start dev server with hot reload |
-| `npm run build` | Compile TypeScript |
-| `npm start` | Run compiled output |
-| `npm run migrate` | Apply pending database migrations |
+| `./bun run dev` | Start dev server with hot reload |
+| `./bun run build` | Compile TypeScript |
+| `./bun start` | Run compiled output |
+| `./bun run migrate` | Apply pending database migrations |
 
 ## Migrations
 
 SQL migration files live in `migrations/`. To add a new migration:
 
 1. Create a file like `migrations/002_add_something.sql`
-2. Run `npm run migrate`
+2. Run `./bun run migrate`
 
 The migration runner tracks applied migrations in a `schema_migrations` table.
 
