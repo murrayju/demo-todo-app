@@ -9,8 +9,7 @@ SERVICE_NAME="test-fake-webapp"
 echo "Creating Tiger Data service: ${SERVICE_NAME}..."
 tiger service create \
   --name "${SERVICE_NAME}" \
-  --addons time-series \
-  --wait
+  --cpu shared
 
 # Get the service ID from the list
 SERVICE_ID=$(tiger service list -o json | jq -r ".[] | select(.name == \"${SERVICE_NAME}\") | .service_id")
