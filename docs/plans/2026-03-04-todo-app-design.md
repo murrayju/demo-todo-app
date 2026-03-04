@@ -14,7 +14,7 @@
 ## Project Structure
 
 ```
-test-fake-webapp/
+demo-todo-app/
 ├── package.json
 ├── tsconfig.json
 ├── .env.example
