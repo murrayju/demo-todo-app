@@ -37,6 +37,26 @@
       cursor: pointer;
     }
     .add-form button:hover { background: #1d4ed8; }
+    .add-form select {
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 16px;
+      background: white;
+    }
+    .priority-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 12px;
+      cursor: pointer;
+      border: none;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .priority-high { background: #fee2e2; color: #dc2626; }
+    .priority-medium { background: #fef3c7; color: #d97706; }
+    .priority-low { background: #dcfce7; color: #16a34a; }
     .todo-list { list-style: none; }
     .todo-item {
       display: flex;
@@ -73,6 +93,11 @@
 
   <div class="add-form">
     <input type="text" id="todo-input" placeholder="What needs to be done?" autofocus>
+    <select id="priority-select">
+      <option value="medium">Medium</option>
+      <option value="high">High</option>
+      <option value="low">Low</option>
+    </select>
     <button onclick="addTodo()">Add</button>
   </div>
 
@@ -103,6 +128,8 @@
           <input type="checkbox" ${todo.completed ? 'checked' : ''}
             onchange="toggleTodo(${todo.id}, this.checked)">
           <span class="todo-title">${escapeHtml(todo.title)}</span>
+          <button class="priority-badge priority-${todo.priority}"
+            onclick="cyclePriority(${todo.id}, '${todo.priority}')">${todo.priority}</button>
           <span class="todo-date">${new Date(todo.created_at).toLocaleDateString()}</span>
           <button class="delete-btn" onclick="deleteTodo(${todo.id})">&times;</button>
         </li>
@@ -111,6 +138,7 @@
 
     async function addTodo() {
       const input = document.getElementById('todo-input');
+      const priority = document.getElementById('priority-select').value;
       const title = input.value.trim();
       if (!title) return;
 
@@ -118,7 +146,7 @@
         const res = await fetch(API, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title })
+          body: JSON.stringify({ title, priority })
         });
         if (!res.ok) throw new Error('Failed to add');
         input.value = '';
@@ -139,6 +167,21 @@
         loadTodos();
       } catch (err) {
         showError('Failed to update todo');
+      }
+    }
+
+    async function cyclePriority(id, current) {
+      const order = ['high', 'medium', 'low'];
+      const next = order[(order.indexOf(current) + 1) % order.length];
+      try {
+        await fetch(`${API}/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ priority: next })
+        });
+        loadTodos();
+      } catch (err) {
+        showError('Failed to update priority');
       }
     }
 

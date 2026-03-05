@@ -12,11 +12,21 @@ app.get("/", (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "src", "views", "index.html"));
 });
 
+const VALID_PRIORITIES = ["low", "medium", "high"] as const;
+type Priority = (typeof VALID_PRIORITIES)[number];
+
+function isValidPriority(value: unknown): value is Priority {
+  return typeof value === "string" && (VALID_PRIORITIES as readonly string[]).includes(value);
+}
+
 // List all todos
 app.get("/api/todos", async (_req, res) => {
   try {
     const result = await pool.query(
-      "SELECT * FROM todos ORDER BY created_at DESC"
+      `SELECT * FROM todos
+       ORDER BY completed ASC,
+         CASE priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 END ASC,
+         created_at DESC`
     );
     res.json(result.rows);
   } catch (err) {
@@ -27,16 +37,20 @@ app.get("/api/todos", async (_req, res) => {
 
 // Create a todo
 app.post("/api/todos", async (req, res) => {
-  const { title } = req.body;
+  const { title, priority } = req.body;
   if (!title || typeof title !== "string" || title.trim().length === 0) {
     res.status(400).json({ error: "Title is required" });
+    return;
+  }
+  if (priority !== undefined && !isValidPriority(priority)) {
+    res.status(400).json({ error: "Priority must be one of: low, medium, high" });
     return;
   }
 
   try {
     const result = await pool.query(
-      "INSERT INTO todos (title) VALUES ($1) RETURNING *",
-      [title.trim()]
+      "INSERT INTO todos (title, priority) VALUES ($1, $2) RETURNING *",
+      [title.trim(), priority ?? "medium"]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -48,7 +62,7 @@ app.post("/api/todos", async (req, res) => {
 // Update a todo
 app.patch("/api/todos/:id", async (req, res) => {
   const { id } = req.params;
-  const { title, completed } = req.body;
+  const { title, completed, priority } = req.body;
 
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -61,6 +75,14 @@ app.patch("/api/todos/:id", async (req, res) => {
   if (completed !== undefined) {
     fields.push(`completed = $${paramIndex++}`);
     values.push(completed);
+  }
+  if (priority !== undefined) {
+    if (!isValidPriority(priority)) {
+      res.status(400).json({ error: "Priority must be one of: low, medium, high" });
+      return;
+    }
+    fields.push(`priority = $${paramIndex++}`);
+    values.push(priority);
   }
 
   if (fields.length === 0) {
