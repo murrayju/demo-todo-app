@@ -15,17 +15,25 @@
       color: #333;
     }
     h1 { margin-bottom: 24px; color: #1a1a1a; }
+    h2 { margin: 32px 0 12px; color: #1a1a1a; font-size: 18px; }
     .add-form {
       display: flex;
       gap: 8px;
-      margin-bottom: 24px;
+      margin-bottom: 16px;
     }
-    .add-form input {
+    .add-form input[type="text"] {
       flex: 1;
       padding: 10px 14px;
       border: 1px solid #ddd;
       border-radius: 6px;
       font-size: 16px;
+    }
+    .add-form select {
+      padding: 10px 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      background: white;
     }
     .add-form button {
       padding: 10px 20px;
@@ -37,6 +45,23 @@
       cursor: pointer;
     }
     .add-form button:hover { background: #1d4ed8; }
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .filter-btn {
+      padding: 4px 12px;
+      border: 2px solid #ddd;
+      border-radius: 16px;
+      background: white;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .filter-btn:hover { border-color: #aaa; }
+    .filter-btn.active { border-color: currentColor; font-weight: 600; }
     .todo-list { list-style: none; }
     .todo-item {
       display: flex;
@@ -53,6 +78,15 @@
       color: #999;
     }
     .todo-title { flex: 1; font-size: 16px; }
+    .category-tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+      color: white;
+      white-space: nowrap;
+    }
     .todo-date { font-size: 12px; color: #999; }
     .delete-btn {
       background: none;
@@ -66,6 +100,70 @@
     .delete-btn:hover { background: #fee2e2; }
     .empty { text-align: center; color: #999; padding: 40px; }
     .error { color: #ef4444; margin-bottom: 16px; }
+    .manage-categories {
+      margin-top: 32px;
+      padding: 16px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .manage-categories h2 { margin: 0 0 12px; }
+    .category-list {
+      list-style: none;
+      margin-bottom: 12px;
+    }
+    .category-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 0;
+    }
+    .category-color-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .category-name { flex: 1; font-size: 14px; }
+    .category-delete-btn {
+      background: none;
+      border: none;
+      color: #ef4444;
+      cursor: pointer;
+      font-size: 16px;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .category-delete-btn:hover { background: #fee2e2; }
+    .add-category-form {
+      display: flex;
+      gap: 8px;
+    }
+    .add-category-form input[type="text"] {
+      flex: 1;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    .add-category-form input[type="color"] {
+      width: 36px;
+      height: 36px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 2px;
+      cursor: pointer;
+    }
+    .add-category-form button {
+      padding: 8px 16px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .add-category-form button:hover { background: #1d4ed8; }
   </style>
 </head>
 <body>
@@ -73,20 +171,74 @@
 
   <div class="add-form">
     <input type="text" id="todo-input" placeholder="What needs to be done?" autofocus>
+    <select id="category-select"></select>
     <button onclick="addTodo()">Add</button>
   </div>
+
+  <div id="filter-bar" class="filter-bar"></div>
 
   <div id="error" class="error" style="display:none"></div>
   <ul id="todo-list" class="todo-list"></ul>
 
+  <div class="manage-categories">
+    <h2>Manage Categories</h2>
+    <ul id="category-list" class="category-list"></ul>
+    <div class="add-category-form">
+      <input type="text" id="category-name-input" placeholder="New category name">
+      <input type="color" id="category-color-input" value="#6b7280">
+      <button onclick="addCategory()">Add</button>
+    </div>
+  </div>
+
   <script>
-    const API = '/api/todos';
+    const TODOS_API = '/api/todos';
+    const CATEGORIES_API = '/api/categories';
+
+    let categories = [];
+    let allTodos = [];
+    let activeFilter = null; // null = show all
+
+    async function loadCategories() {
+      try {
+        const res = await fetch(CATEGORIES_API);
+        categories = await res.json();
+        renderCategorySelect();
+        renderFilterBar();
+        renderCategoryList();
+      } catch (err) {
+        showError('Failed to load categories');
+      }
+    }
+
+    function renderCategorySelect() {
+      const select = document.getElementById('category-select');
+      select.innerHTML = '<option value="">No category</option>' +
+        categories.map(c =>
+          `<option value="${c.id}">${escapeHtml(c.name)}</option>`
+        ).join('');
+    }
+
+    function renderFilterBar() {
+      const bar = document.getElementById('filter-bar');
+      bar.innerHTML =
+        `<button class="filter-btn ${activeFilter === null ? 'active' : ''}" onclick="setFilter(null)">All</button>` +
+        `<button class="filter-btn ${activeFilter === 'uncategorized' ? 'active' : ''}" style="color:#6b7280" onclick="setFilter('uncategorized')">Uncategorized</button>` +
+        categories.map(c =>
+          `<button class="filter-btn ${activeFilter === c.id ? 'active' : ''}" style="color:${c.color}" onclick="setFilter(${c.id})">${escapeHtml(c.name)}</button>`
+        ).join('');
+    }
+
+    function setFilter(filter) {
+      activeFilter = filter;
+      renderFilterBar();
+      renderTodos(allTodos);
+    }
 
     async function loadTodos() {
       try {
-        const res = await fetch(API);
-        const todos = await res.json();
-        renderTodos(todos);
+        const res = await fetch(TODOS_API);
+        allTodos = await res.json();
+        renderTodos(allTodos);
       } catch (err) {
         showError('Failed to load todos');
       }
@@ -94,15 +246,25 @@
 
     function renderTodos(todos) {
       const list = document.getElementById('todo-list');
-      if (todos.length === 0) {
+      let filtered = todos;
+      if (activeFilter === 'uncategorized') {
+        filtered = todos.filter(t => !t.category_id);
+      } else if (activeFilter !== null) {
+        filtered = todos.filter(t => t.category_id === activeFilter);
+      }
+
+      if (filtered.length === 0) {
         list.innerHTML = '<li class="empty">No todos yet. Add one above!</li>';
         return;
       }
-      list.innerHTML = todos.map(todo => `
+      list.innerHTML = filtered.map(todo => `
         <li class="todo-item ${todo.completed ? 'completed' : ''}">
           <input type="checkbox" ${todo.completed ? 'checked' : ''}
             onchange="toggleTodo(${todo.id}, this.checked)">
           <span class="todo-title">${escapeHtml(todo.title)}</span>
+          ${todo.category_name
+            ? `<span class="category-tag" style="background:${todo.category_color}">${escapeHtml(todo.category_name)}</span>`
+            : ''}
           <span class="todo-date">${new Date(todo.created_at).toLocaleDateString()}</span>
           <button class="delete-btn" onclick="deleteTodo(${todo.id})">&times;</button>
         </li>
@@ -111,14 +273,18 @@
 
     async function addTodo() {
       const input = document.getElementById('todo-input');
+      const select = document.getElementById('category-select');
       const title = input.value.trim();
       if (!title) return;
 
+      const body = { title };
+      if (select.value) body.category_id = parseInt(select.value, 10);
+
       try {
-        const res = await fetch(API, {
+        const res = await fetch(TODOS_API, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title })
+          body: JSON.stringify(body)
         });
         if (!res.ok) throw new Error('Failed to add');
         input.value = '';
@@ -131,7 +297,7 @@
 
     async function toggleTodo(id, completed) {
       try {
-        await fetch(`${API}/${id}`, {
+        await fetch(`${TODOS_API}/${id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ completed })
@@ -144,10 +310,63 @@
 
     async function deleteTodo(id) {
       try {
-        await fetch(`${API}/${id}`, { method: 'DELETE' });
+        await fetch(`${TODOS_API}/${id}`, { method: 'DELETE' });
         loadTodos();
       } catch (err) {
         showError('Failed to delete todo');
+      }
+    }
+
+    function renderCategoryList() {
+      const list = document.getElementById('category-list');
+      if (categories.length === 0) {
+        list.innerHTML = '<li style="color:#999;font-size:14px;">No categories yet.</li>';
+        return;
+      }
+      list.innerHTML = categories.map(c => `
+        <li class="category-item">
+          <span class="category-color-dot" style="background:${c.color}"></span>
+          <span class="category-name">${escapeHtml(c.name)}</span>
+          <button class="category-delete-btn" onclick="deleteCategory(${c.id})">&times;</button>
+        </li>
+      `).join('');
+    }
+
+    async function addCategory() {
+      const nameInput = document.getElementById('category-name-input');
+      const colorInput = document.getElementById('category-color-input');
+      const name = nameInput.value.trim();
+      if (!name) return;
+
+      try {
+        const res = await fetch(CATEGORIES_API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, color: colorInput.value })
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          showError(data.error || 'Failed to add category');
+          return;
+        }
+        nameInput.value = '';
+        colorInput.value = '#6b7280';
+        hideError();
+        await loadCategories();
+        loadTodos();
+      } catch (err) {
+        showError('Failed to add category');
+      }
+    }
+
+    async function deleteCategory(id) {
+      try {
+        await fetch(`${CATEGORIES_API}/${id}`, { method: 'DELETE' });
+        if (activeFilter === id) activeFilter = null;
+        await loadCategories();
+        loadTodos();
+      } catch (err) {
+        showError('Failed to delete category');
       }
     }
 
@@ -171,8 +390,12 @@
     document.getElementById('todo-input').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') addTodo();
     });
+    document.getElementById('category-name-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') addCategory();
+    });
 
-    // Load todos on page load
+    // Load data on page load
+    loadCategories();
     loadTodos();
   </script>
 </body>
