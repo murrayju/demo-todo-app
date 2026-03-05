@@ -16,7 +16,11 @@ app.get("/", (_req, res) => {
 app.get("/api/todos", async (_req, res) => {
   try {
     const result = await pool.query(
-      "SELECT * FROM todos ORDER BY created_at DESC"
+      `SELECT * FROM todos ORDER BY
+        completed ASC,
+        CASE WHEN due_date IS NOT NULL AND completed = false THEN 0 ELSE 1 END ASC,
+        due_date ASC NULLS LAST,
+        created_at DESC`
     );
     res.json(result.rows);
   } catch (err) {
@@ -27,7 +31,7 @@ app.get("/api/todos", async (_req, res) => {
 
 // Create a todo
 app.post("/api/todos", async (req, res) => {
-  const { title } = req.body;
+  const { title, due_date } = req.body;
   if (!title || typeof title !== "string" || title.trim().length === 0) {
     res.status(400).json({ error: "Title is required" });
     return;
@@ -35,8 +39,8 @@ app.post("/api/todos", async (req, res) => {
 
   try {
     const result = await pool.query(
-      "INSERT INTO todos (title) VALUES ($1) RETURNING *",
-      [title.trim()]
+      "INSERT INTO todos (title, due_date) VALUES ($1, $2) RETURNING *",
+      [title.trim(), due_date || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -48,7 +52,7 @@ app.post("/api/todos", async (req, res) => {
 // Update a todo
 app.patch("/api/todos/:id", async (req, res) => {
   const { id } = req.params;
-  const { title, completed } = req.body;
+  const { title, completed, due_date } = req.body;
 
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -61,6 +65,10 @@ app.patch("/api/todos/:id", async (req, res) => {
   if (completed !== undefined) {
     fields.push(`completed = $${paramIndex++}`);
     values.push(completed);
+  }
+  if (due_date !== undefined) {
+    fields.push(`due_date = $${paramIndex++}`);
+    values.push(due_date || null);
   }
 
   if (fields.length === 0) {
