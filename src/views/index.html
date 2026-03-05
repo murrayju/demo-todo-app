@@ -64,6 +64,26 @@
       border-radius: 4px;
     }
     .delete-btn:hover { background: #fee2e2; }
+    .search-form {
+      margin-bottom: 16px;
+    }
+    .search-form input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 16px;
+    }
+    .search-form input:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+    mark {
+      background: #fef08a;
+      padding: 0 2px;
+      border-radius: 2px;
+    }
     .empty { text-align: center; color: #999; padding: 40px; }
     .error { color: #ef4444; margin-bottom: 16px; }
   </style>
@@ -76,11 +96,17 @@
     <button onclick="addTodo()">Add</button>
   </div>
 
+  <div class="search-form">
+    <input type="text" id="search-input" placeholder="Search todos...">
+  </div>
+
   <div id="error" class="error" style="display:none"></div>
   <ul id="todo-list" class="todo-list"></ul>
 
   <script>
     const API = '/api/todos';
+    let currentSearchQuery = '';
+    let searchTimeout = null;
 
     async function loadTodos() {
       try {
@@ -92,17 +118,39 @@
       }
     }
 
-    function renderTodos(todos) {
+    async function searchTodos(query) {
+      try {
+        const res = await fetch(`${API}/search?q=${encodeURIComponent(query)}`);
+        if (!res.ok) throw new Error('Search failed');
+        const todos = await res.json();
+        renderTodos(todos, query);
+      } catch (err) {
+        showError('Failed to search todos');
+      }
+    }
+
+    function highlightMatch(text, query) {
+      if (!query) return escapeHtml(text);
+      const escaped = escapeHtml(text);
+      // Split query into words and highlight each match (case-insensitive)
+      const words = query.trim().split(/\s+/).filter(w => w.length > 0);
+      if (words.length === 0) return escaped;
+      const pattern = new RegExp(`(${words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
+      return escaped.replace(pattern, '<mark>$1</mark>');
+    }
+
+    function renderTodos(todos, searchQuery) {
       const list = document.getElementById('todo-list');
       if (todos.length === 0) {
-        list.innerHTML = '<li class="empty">No todos yet. Add one above!</li>';
+        const msg = searchQuery ? 'No matching todos found.' : 'No todos yet. Add one above!';
+        list.innerHTML = `<li class="empty">${msg}</li>`;
         return;
       }
       list.innerHTML = todos.map(todo => `
         <li class="todo-item ${todo.completed ? 'completed' : ''}">
           <input type="checkbox" ${todo.completed ? 'checked' : ''}
             onchange="toggleTodo(${todo.id}, this.checked)">
-          <span class="todo-title">${escapeHtml(todo.title)}</span>
+          <span class="todo-title">${searchQuery ? highlightMatch(todo.title, searchQuery) : escapeHtml(todo.title)}</span>
           <span class="todo-date">${new Date(todo.created_at).toLocaleDateString()}</span>
           <button class="delete-btn" onclick="deleteTodo(${todo.id})">&times;</button>
         </li>
@@ -123,7 +171,7 @@
         if (!res.ok) throw new Error('Failed to add');
         input.value = '';
         hideError();
-        loadTodos();
+        refreshList();
       } catch (err) {
         showError('Failed to add todo');
       }
@@ -136,7 +184,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ completed })
         });
-        loadTodos();
+        refreshList();
       } catch (err) {
         showError('Failed to update todo');
       }
@@ -145,9 +193,17 @@
     async function deleteTodo(id) {
       try {
         await fetch(`${API}/${id}`, { method: 'DELETE' });
-        loadTodos();
+        refreshList();
       } catch (err) {
         showError('Failed to delete todo');
+      }
+    }
+
+    function refreshList() {
+      if (currentSearchQuery) {
+        searchTodos(currentSearchQuery);
+      } else {
+        loadTodos();
       }
     }
 
@@ -170,6 +226,21 @@
     // Submit on Enter
     document.getElementById('todo-input').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') addTodo();
+    });
+
+    // Debounced search
+    document.getElementById('search-input').addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      const query = e.target.value.trim();
+      searchTimeout = setTimeout(() => {
+        currentSearchQuery = query;
+        hideError();
+        if (query) {
+          searchTodos(query);
+        } else {
+          loadTodos();
+        }
+      }, 300);
     });
 
     // Load todos on page load

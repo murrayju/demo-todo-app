@@ -16,12 +16,36 @@ app.get("/", (_req, res) => {
 app.get("/api/todos", async (_req, res) => {
   try {
     const result = await pool.query(
-      "SELECT * FROM todos ORDER BY created_at DESC"
+      "SELECT id, title, completed, created_at FROM todos ORDER BY created_at DESC"
     );
     res.json(result.rows);
   } catch (err) {
     console.error("Error listing todos:", err);
     res.status(500).json({ error: "Failed to list todos" });
+  }
+});
+
+// Search todos using full-text search
+app.get("/api/todos/search", async (req, res) => {
+  const q = req.query.q;
+  if (!q || typeof q !== "string" || q.trim().length === 0) {
+    res.status(400).json({ error: "Query parameter 'q' is required" });
+    return;
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT id, title, completed, created_at,
+              ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
+       FROM todos
+       WHERE search_vector @@ plainto_tsquery('english', $1)
+       ORDER BY rank DESC, created_at DESC`,
+      [q.trim()]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error searching todos:", err);
+    res.status(500).json({ error: "Failed to search todos" });
   }
 });
 
@@ -35,7 +59,7 @@ app.post("/api/todos", async (req, res) => {
 
   try {
     const result = await pool.query(
-      "INSERT INTO todos (title) VALUES ($1) RETURNING *",
+      "INSERT INTO todos (title) VALUES ($1) RETURNING id, title, completed, created_at",
       [title.trim()]
     );
     res.status(201).json(result.rows[0]);
@@ -72,7 +96,7 @@ app.patch("/api/todos/:id", async (req, res) => {
 
   try {
     const result = await pool.query(
-      `UPDATE todos SET ${fields.join(", ")} WHERE id = $${paramIndex} RETURNING *`,
+      `UPDATE todos SET ${fields.join(", ")} WHERE id = $${paramIndex} RETURNING id, title, completed, created_at`,
       values
     );
     if (result.rows.length === 0) {
@@ -92,7 +116,7 @@ app.delete("/api/todos/:id", async (req, res) => {
 
   try {
     const result = await pool.query(
-      "DELETE FROM todos WHERE id = $1 RETURNING *",
+      "DELETE FROM todos WHERE id = $1 RETURNING id, title, completed, created_at",
       [id]
     );
     if (result.rows.length === 0) {
