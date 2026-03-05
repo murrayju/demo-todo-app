@@ -20,12 +20,18 @@
       gap: 8px;
       margin-bottom: 24px;
     }
-    .add-form input {
+    .add-form input[type="text"] {
       flex: 1;
       padding: 10px 14px;
       border: 1px solid #ddd;
       border-radius: 6px;
       font-size: 16px;
+    }
+    .add-form input[type="date"] {
+      padding: 10px 14px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
     }
     .add-form button {
       padding: 10px 20px;
@@ -54,6 +60,8 @@
     }
     .todo-title { flex: 1; font-size: 16px; }
     .todo-date { font-size: 12px; color: #999; }
+    .todo-due { font-size: 12px; color: #666; white-space: nowrap; }
+    .todo-due.overdue { color: #ef4444; font-weight: 600; }
     .delete-btn {
       background: none;
       border: none;
@@ -73,6 +81,7 @@
 
   <div class="add-form">
     <input type="text" id="todo-input" placeholder="What needs to be done?" autofocus>
+    <input type="date" id="due-date-input" title="Due date (optional)">
     <button onclick="addTodo()">Add</button>
   </div>
 
@@ -98,30 +107,50 @@
         list.innerHTML = '<li class="empty">No todos yet. Add one above!</li>';
         return;
       }
-      list.innerHTML = todos.map(todo => `
-        <li class="todo-item ${todo.completed ? 'completed' : ''}">
-          <input type="checkbox" ${todo.completed ? 'checked' : ''}
-            onchange="toggleTodo(${todo.id}, this.checked)">
-          <span class="todo-title">${escapeHtml(todo.title)}</span>
-          <span class="todo-date">${new Date(todo.created_at).toLocaleDateString()}</span>
-          <button class="delete-btn" onclick="deleteTodo(${todo.id})">&times;</button>
-        </li>
-      `).join('');
+      list.innerHTML = todos.map(todo => {
+        const dueDateHtml = todo.due_date ? formatDueDate(todo.due_date, todo.completed) : '';
+        return `
+          <li class="todo-item ${todo.completed ? 'completed' : ''}">
+            <input type="checkbox" ${todo.completed ? 'checked' : ''}
+              onchange="toggleTodo(${todo.id}, this.checked)">
+            <span class="todo-title">${escapeHtml(todo.title)}</span>
+            ${dueDateHtml}
+            <span class="todo-date">${new Date(todo.created_at).toLocaleDateString()}</span>
+            <button class="delete-btn" onclick="deleteTodo(${todo.id})">&times;</button>
+          </li>
+        `;
+      }).join('');
+    }
+
+    function formatDueDate(dueDateStr, completed) {
+      const due = new Date(dueDateStr);
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+      const isOverdue = !completed && due < now;
+      const label = due.toLocaleDateString();
+      return `<span class="todo-due ${isOverdue ? 'overdue' : ''}">Due: ${label}</span>`;
     }
 
     async function addTodo() {
       const input = document.getElementById('todo-input');
+      const dueDateInput = document.getElementById('due-date-input');
       const title = input.value.trim();
       if (!title) return;
+
+      const body = { title };
+      if (dueDateInput.value) {
+        body.due_date = new Date(dueDateInput.value).toISOString();
+      }
 
       try {
         const res = await fetch(API, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title })
+          body: JSON.stringify(body)
         });
         if (!res.ok) throw new Error('Failed to add');
         input.value = '';
+        dueDateInput.value = '';
         hideError();
         loadTodos();
       } catch (err) {
