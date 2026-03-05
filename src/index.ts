@@ -12,11 +12,71 @@ app.get("/", (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "src", "views", "index.html"));
 });
 
+// List all categories
+app.get("/api/categories", async (_req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM categories ORDER BY name"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error listing categories:", err);
+    res.status(500).json({ error: "Failed to list categories" });
+  }
+});
+
+// Create a category
+app.post("/api/categories", async (req, res) => {
+  const { name, color } = req.body;
+  if (!name || typeof name !== "string" || name.trim().length === 0) {
+    res.status(400).json({ error: "Name is required" });
+    return;
+  }
+
+  try {
+    const result = await pool.query(
+      "INSERT INTO categories (name, color) VALUES ($1, $2) RETURNING *",
+      [name.trim(), color || "#6b7280"]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err: any) {
+    if (err.code === "23505") {
+      res.status(409).json({ error: "Category already exists" });
+      return;
+    }
+    console.error("Error creating category:", err);
+    res.status(500).json({ error: "Failed to create category" });
+  }
+});
+
+// Delete a category
+app.delete("/api/categories/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(
+      "DELETE FROM categories WHERE id = $1 RETURNING *",
+      [id]
+    );
+    if (result.rows.length === 0) {
+      res.status(404).json({ error: "Category not found" });
+      return;
+    }
+    res.json({ deleted: result.rows[0] });
+  } catch (err) {
+    console.error("Error deleting category:", err);
+    res.status(500).json({ error: "Failed to delete category" });
+  }
+});
+
 // List all todos
 app.get("/api/todos", async (_req, res) => {
   try {
     const result = await pool.query(
-      "SELECT * FROM todos ORDER BY created_at DESC"
+      `SELECT t.*, c.name AS category_name, c.color AS category_color
+       FROM todos t
+       LEFT JOIN categories c ON t.category_id = c.id
+       ORDER BY t.created_at DESC`
     );
     res.json(result.rows);
   } catch (err) {
@@ -27,7 +87,7 @@ app.get("/api/todos", async (_req, res) => {
 
 // Create a todo
 app.post("/api/todos", async (req, res) => {
-  const { title } = req.body;
+  const { title, category_id } = req.body;
   if (!title || typeof title !== "string" || title.trim().length === 0) {
     res.status(400).json({ error: "Title is required" });
     return;
@@ -35,8 +95,8 @@ app.post("/api/todos", async (req, res) => {
 
   try {
     const result = await pool.query(
-      "INSERT INTO todos (title) VALUES ($1) RETURNING *",
-      [title.trim()]
+      "INSERT INTO todos (title, category_id) VALUES ($1, $2) RETURNING *",
+      [title.trim(), category_id || null]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -48,7 +108,7 @@ app.post("/api/todos", async (req, res) => {
 // Update a todo
 app.patch("/api/todos/:id", async (req, res) => {
   const { id } = req.params;
-  const { title, completed } = req.body;
+  const { title, completed, category_id } = req.body;
 
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -61,6 +121,10 @@ app.patch("/api/todos/:id", async (req, res) => {
   if (completed !== undefined) {
     fields.push(`completed = $${paramIndex++}`);
     values.push(completed);
+  }
+  if (category_id !== undefined) {
+    fields.push(`category_id = $${paramIndex++}`);
+    values.push(category_id);
   }
 
   if (fields.length === 0) {
